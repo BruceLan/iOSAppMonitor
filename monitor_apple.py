@@ -6,10 +6,12 @@ import lark_oapi as lark
 from lark_oapi.api.bitable.v1 import ListAppTableRecordRequest, ListAppTableRequest, UpdateAppTableRecordRequest
 from lark_oapi.api.bitable.v1.model import AppTableRecord
 from lark_oapi.api.wiki.v2.model.get_node_space_request import GetNodeSpaceRequest
+from lark_oapi.api.im.v1 import CreateMessageRequest, CreateMessageRequestBody
 from typing import List, Dict, Any, Optional, Tuple
 from model import ApplePackageRecord
 import requests
 import json
+import uuid
 
 
 class FeishuBitableMonitor:
@@ -139,73 +141,6 @@ class FeishuBitableMonitor:
             print(f"❌ 连接异常: {str(e)}")
             return False
     
-    def check_table_permissions(self, app_token: str, table_id: str) -> None:
-        """
-        检查多维表格的权限（通过尝试读取和写入来测试）
-        
-        Args:
-            app_token: 多维表格的应用 Token
-            table_id: 表格 ID
-        """
-        print(f"\n🔍 检查表格权限...")
-        print(f"  app_token: {app_token}")
-        print(f"  table_id: {table_id}")
-        
-        # 测试读取权限
-        try:
-            request = ListAppTableRecordRequest.builder() \
-                .app_token(app_token) \
-                .table_id(table_id) \
-                .page_size(1) \
-                .build()
-            
-            response = self.client.bitable.v1.app_table_record.list(request)
-            
-            if response.success():
-                print(f"  ✅ 读取权限: 正常")
-                
-                # 如果有记录，尝试测试更新权限（不实际更新，只是测试）
-                if response.data.items and len(response.data.items) > 0:
-                    test_record = response.data.items[0]
-                    print(f"\n  🧪 测试写入权限（使用第一条记录）...")
-                    print(f"     Record ID: {test_record.record_id}")
-                    
-                    # 尝试更新一个不存在的字段来测试权限（不会实际修改数据）
-                    test_request = UpdateAppTableRecordRequest.builder() \
-                        .app_token(app_token) \
-                        .table_id(table_id) \
-                        .record_id(test_record.record_id) \
-                        .request_body(
-                            AppTableRecord.builder()
-                            .fields({"_test_permission_check": "test"})
-                            .build()
-                        ) \
-                        .build()
-                    
-                    test_response = self.client.bitable.v1.app_table_record.update(test_request)
-                    
-                    if test_response.success():
-                        print(f"  ✅ 写入权限: 正常")
-                    else:
-                        print(f"  ❌ 写入权限: 失败")
-                        print(f"     错误码: {test_response.code}")
-                        print(f"     错误信息: {test_response.msg}")
-                        if hasattr(test_response, 'raw'):
-                            print(f"     完整响应: {test_response.raw}")
-            else:
-                print(f"  ❌ 读取权限: 失败 ({response.code}, {response.msg})")
-        except Exception as e:
-            print(f"  ❌ 读取权限: 异常 ({str(e)})")
-        
-        print(f"\n💡 如果写入权限失败，请确保：")
-        print(f"  1. 在飞书开放平台已添加 'bitable:app' 权限")
-        print(f"  2. 在多维表格中添加了该应用：")
-        print(f"     - 打开多维表格")
-        print(f"     - 点击右上角「...」->「高级设置」->「添加协作者」")
-        print(f"     - 搜索并添加你的应用（App ID: {self.app_id}）")
-        print(f"  3. 应用需要有「可编辑」权限，而不是「只读」权限")
-        print(f"  4. 如果是企业自建应用，需要先发布到企业内部")
-        print(f"  5. 尝试等待几分钟让权限生效，或重启飞书客户端")
     
     def get_all_records(
         self,
@@ -488,7 +423,7 @@ class FeishuBitableMonitor:
             app_token: 多维表格的应用 Token
             table_id: 表格 ID
             record_id: 记录 ID
-            fields: 要更新的字段字典，例如 {"包状态": "已发布", "过审日期": "2025/12/22"}
+            fields: 要更新的字段字典，例如 {"包状态": "已发布", "过审时间": "2025/12/22"}
         
         Returns:
             更新是否成功
@@ -527,51 +462,228 @@ class FeishuBitableMonitor:
     
     def send_feishu_message(
         self,
-        webhook_url: str,
+        chat_id: str,
         app_name: str,
         stage: str,
-        version: str
+        version: str,
+        mention_all: bool = False,
+        mention_user_ids: Optional[List[str]] = None
     ) -> bool:
         """
-        发送消息到飞书机器人
+        发送消息到飞书群聊
         
         Args:
-            webhook_url: 飞书机器人 Webhook URL
+            chat_id: 飞书群聊 ID
             app_name: 应用名称
             stage: 阶段
             version: 版本号
+            mention_all: 是否 @ 所有人
+            mention_user_ids: 要 @ 的用户 open_id 列表（可选）
         
         Returns:
             发送是否成功
         """
-        if not webhook_url:
-            print(f"    ⚠️  飞书机器人 URL 未配置，跳过发送消息")
+        if not chat_id:
+            print(f"    ⚠️  飞书群聊 ID 未配置，跳过发送消息")
             return False
         
         try:
-            message = f"{app_name} {stage} {version} 过审并发布了"
+            message_text = f"{app_name} {stage} {version} 过审并发布了"
             
-            payload = {
-                "msg_type": "text",
-                "content": {
-                    "text": message
+            # 构建富文本消息内容（支持 @ 功能）
+            content_parts = []
+            
+            # 添加 @ 所有人
+            if mention_all:
+                content_parts.append({
+                    "tag": "at",
+                    "user_id": "all"
+                })
+                content_parts.append({
+                    "tag": "text",
+                    "text": " "
+                })
+            
+            # 添加 @ 多个用户
+            if mention_user_ids:
+                for user_id in mention_user_ids:
+                    content_parts.append({
+                        "tag": "at",
+                        "user_id": user_id
+                    })
+                    content_parts.append({
+                        "tag": "text",
+                        "text": " "
+                    })
+            
+            # 添加消息正文
+            content_parts.append({
+                "tag": "text",
+                "text": message_text
+            })
+            
+            # 构建消息内容
+            content = json.dumps({
+                "zh_cn": {
+                    "title": "",
+                    "content": [content_parts]
                 }
-            }
+            }, ensure_ascii=False)
             
-            response = requests.post(webhook_url, json=payload, timeout=10)
-            response.raise_for_status()
+            # 生成唯一的 UUID
+            message_uuid = str(uuid.uuid4())
             
-            result = response.json()
-            if result.get('code') == 0:
-                print(f"    ✅ 飞书消息发送成功: {message}")
+            # 构建请求
+            request = CreateMessageRequest.builder() \
+                .receive_id_type("chat_id") \
+                .request_body(
+                    CreateMessageRequestBody.builder()
+                    .receive_id(chat_id)
+                    .msg_type("post")  # 使用富文本消息类型
+                    .content(content)
+                    .uuid(message_uuid)
+                    .build()
+                ) \
+                .build()
+            
+            # 发送消息
+            response = self.client.im.v1.message.create(request)
+            
+            if response.success():
+                mention_info = ""
+                if mention_all:
+                    mention_info = " (@所有人)"
+                elif mention_user_ids:
+                    mention_info = f" (@{len(mention_user_ids)}人)"
+                print(f"    ✅ 飞书消息发送成功{mention_info}: {message_text}")
                 return True
             else:
-                print(f"    ❌ 飞书消息发送失败: {result.get('msg', '未知错误')}")
+                print(f"    ❌ 飞书消息发送失败")
+                print(f"       错误码: {response.code}")
+                print(f"       错误信息: {response.msg}")
+                if response.code == 230002:
+                    print(f"       💡 机器人不在该群聊中，请先将应用添加到群聊")
+                    print(f"          - 打开飞书群聊")
+                    print(f"          - 点击右上角「...」->「设置」")
+                    print(f"          - 找到「群机器人」->「添加机器人」")
+                    print(f"          - 搜索并添加你的应用")
                 return False
                 
         except Exception as e:
             print(f"    ❌ 发送飞书消息异常: {str(e)}")
             return False
+    
+    def send_notifications(
+        self,
+        notifications: List[Dict[str, Any]],
+        app_name: str,
+        stage: str,
+        version: str
+    ) -> None:
+        """
+        发送通知到多个飞书群聊
+        
+        Args:
+            notifications: 通知配置列表，每个配置包含：
+                - chat_id: 群聊 ID
+                - mention_all: 是否 @ 所有人（可选）
+                - mention_user_ids: 要 @ 的用户 open_id 列表（可选）
+            app_name: 应用名称
+            stage: 阶段
+            version: 版本号
+        
+        示例：
+            notifications = [
+                {"chat_id": "oc_xxx", "mention_all": True},
+                {"chat_id": "oc_yyy", "mention_user_ids": ["ou_xxx", "ou_yyy"]}
+            ]
+        """
+        if not notifications:
+            print(f"    ⚠️  未配置飞书通知，跳过发送")
+            return
+        
+        print(f"  📨 发送飞书通知到 {len(notifications)} 个群聊...")
+        for config in notifications:
+            chat_id = config.get("chat_id")
+            mention_all = config.get("mention_all", False)
+            mention_user_ids = config.get("mention_user_ids")
+            
+            if not chat_id:
+                print(f"    ⚠️  通知配置缺少 chat_id，跳过")
+                continue
+            
+            self.send_feishu_message(
+                chat_id=chat_id,
+                app_name=app_name,
+                stage=stage,
+                version=version,
+                mention_all=mention_all,
+                mention_user_ids=mention_user_ids
+            )
+    
+    def update_app_status(
+        self,
+        app_token: str,
+        table_id: str,
+        record: ApplePackageRecord,
+        latest_version: str,
+        current_date_timestamp: int
+    ) -> None:
+        """
+        更新应用的飞书表格状态
+        
+        Args:
+            app_token: 多维表格的应用 Token
+            table_id: 表格 ID
+            record: 应用记录
+            latest_version: 最新版本号
+            current_date_timestamp: 当前日期的时间戳（毫秒）
+        """
+        print(f"  📝 更新飞书表格状态...")
+        
+        # 要更新的字段
+        update_fields = {
+            "包状态": "已发布",
+            "过审时间": current_date_timestamp  # 使用时间戳（毫秒）
+        }
+        
+        if record.children:
+            # 有子记录：找到对应版本号的子记录并更新
+            target_child = None
+            for child in record.children:
+                if child.version == latest_version:
+                    target_child = child
+                    break
+            
+            if target_child:
+                # 更新子记录状态
+                print(f"    更新子记录: {target_child.record_id} (版本: {target_child.version})")
+                self.update_record_fields(
+                    app_token=app_token,
+                    table_id=table_id,
+                    record_id=target_child.record_id,
+                    fields=update_fields
+                )
+            else:
+                print(f"    ⚠️  未找到版本号为 {latest_version} 的子记录")
+            
+            # 更新主记录状态
+            print(f"    更新主记录: {record.record_id}")
+            self.update_record_fields(
+                app_token=app_token,
+                table_id=table_id,
+                record_id=record.record_id,
+                fields=update_fields
+            )
+        else:
+            # 没有子记录：只更新主记录
+            print(f"    更新主记录: {record.record_id}")
+            self.update_record_fields(
+                app_token=app_token,
+                table_id=table_id,
+                record_id=record.record_id,
+                fields=update_fields
+            )
     
     def print_records(self, records: List[ApplePackageRecord]):
         """
@@ -662,9 +774,6 @@ def main():
     # 配置信息
     APP_ID = "cli_a9ccfb2bbf385cc6"
     APP_SECRET = "4RrEVRd6jXTBrPbOxncNEbprT34AloaH"
-
-    # APP_ID = "cli_a80a0bde81bc9013"
-    # APP_SECRET = "4RrEVRd6jXTBrPbOxncNEbprT34AloaH"
     
     # Wiki URL（知识库下的多维表格）
     WIKI_URL = "https://la1a59fdywl.feishu.cn/wiki/Nzmew2Przi0hQAkgbGHcTCvfn3c?fromScene=spaceOverview&table=tblburubNacfxW79&view=vewGZJS1AM"
@@ -708,9 +817,6 @@ def main():
         print("\n⚠️  连接失败，请检查 app_token 是否正确")
         return []
     
-    # 检查表格权限
-    if table_id:
-        monitor.check_table_permissions(app_token, table_id)
     
     print("\n" + "=" * 60)
     print("步骤 3: 读取并筛选数据")
@@ -760,12 +866,25 @@ def main():
     print("=" * 60)
     print("  只显示指定版本已上线的应用\n")
     
-    # 飞书机器人 Webhook URL（稍后配置）
-    FEISHU_WEBHOOK_URL = "https://open.feishu.cn/open-apis/bot/v2/hook/73f8286b-b226-4c72-9259-9ff9c341253f"  # TODO: 配置飞书机器人 URL
+    # 飞书通知配置（支持多个群，每个群可以配置不同的 @ 规则）
+    FEISHU_NOTIFICATIONS = [
+        {
+            "chat_id": "oc_21fbcfe60694ec387bfca22241426871",  # 群1
+            "mention_all": True  # @ 所有人
+        },
+        {
+            "chat_id": "oc_39d562fd54ed57bfa0ede9a8ce25b458",  # 群2
+            "mention_user_ids": [  # @ 多个用户（列表形式）
+                "ou_510b8e2d36f6330ef8dc917167bde9bf",
+                "ou_3ce54c14f9ec3e6de326165614f4872d"
+                # "ou_xxxxxxxxxxxxxxxxxxxxxxxx",  # 可以添加更多用户
+            ]
+        }
+    ]
     
-    # 获取当前日期（格式：2025/11/12）
+    # 获取当前时间戳（毫秒）
     from datetime import datetime
-    current_date = datetime.now().strftime("%Y/%m/%d")
+    current_timestamp = int(datetime.now().timestamp() * 1000)
     
     for record in filtered_records:
         if not record.apple_id:
@@ -797,59 +916,17 @@ def main():
                 print()
                 
                 # 更新飞书表格状态
-                print(f"  📝 更新飞书表格状态...")
+                monitor.update_app_status(
+                    app_token=app_token,
+                    table_id=table_id,
+                    record=record,
+                    latest_version=local_latest_version,
+                    current_date_timestamp=current_timestamp
+                )
                 
-                if record.children:
-                    # 有子记录：找到对应版本号的子记录并更新
-                    target_child = None
-                    for child in record.children:
-                        if child.version == local_latest_version:
-                            target_child = child
-                            break
-                    
-                    if target_child:
-                        # 更新子记录状态
-                        print(f"    更新子记录: {target_child.record_id} (版本: {target_child.version})")
-                        monitor.update_record_fields(
-                            app_token=app_token,
-                            table_id=table_id,
-                            record_id=target_child.record_id,
-                            fields={
-                                "包状态": "已发布",
-                                "过审日期": current_date
-                            }
-                        )
-                    else:
-                        print(f"    ⚠️  未找到版本号为 {local_latest_version} 的子记录")
-                    
-                    # 更新主记录状态
-                    print(f"    更新主记录: {record.record_id}")
-                    monitor.update_record_fields(
-                        app_token=app_token,
-                        table_id=table_id,
-                        record_id=record.record_id,
-                        fields={
-                            "包状态": "已发布",
-                            "过审日期": current_date
-                        }
-                    )
-                else:
-                    # 没有子记录：只更新主记录
-                    print(f"    更新主记录: {record.record_id}")
-                    monitor.update_record_fields(
-                        app_token=app_token,
-                        table_id=table_id,
-                        record_id=record.record_id,
-                        fields={
-                            "包状态": "已发布",
-                            "过审日期": current_date
-                        }
-                    )
-                
-                # 发送飞书消息
-                print(f"  📨 发送飞书消息...")
-                monitor.send_feishu_message(
-                    webhook_url=FEISHU_WEBHOOK_URL,
+                # 发送飞书通知到多个群聊
+                monitor.send_notifications(
+                    notifications=FEISHU_NOTIFICATIONS,
                     app_name=record.package_name,
                     stage=record.stage or "未知",
                     version=local_latest_version

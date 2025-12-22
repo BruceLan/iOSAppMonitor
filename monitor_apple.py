@@ -640,9 +640,9 @@ class FeishuBitableMonitor:
             current_date_timestamp: 当前日期的时间戳（毫秒）
         """
         print(f"  📝 更新飞书表格状态...")
-        
+
         # 要更新的字段
-        update_fields = {
+        update_child_fields = {
             "包状态": "已发布",
             "过审时间": current_date_timestamp  # 使用时间戳（毫秒）
         }
@@ -662,28 +662,23 @@ class FeishuBitableMonitor:
                     app_token=app_token,
                     table_id=table_id,
                     record_id=target_child.record_id,
-                    fields=update_fields
+                    fields=update_child_fields
                 )
-            else:
-                print(f"    ⚠️  未找到版本号为 {latest_version} 的子记录")
+        
+        # 更新主记录的字段
+        update_fields = {
+            "包状态": "已发布",
+        }    
+
+        # 没有子记录：只更新主记录, 只更新状态，不更新时间
+        print(f"    更新主记录: {record.record_id}")
+        self.update_record_fields(
+            app_token=app_token,
+            table_id=table_id,
+            record_id=record.record_id,
+            fields=update_fields
+        )
             
-            # 更新主记录状态
-            print(f"    更新主记录: {record.record_id}")
-            self.update_record_fields(
-                app_token=app_token,
-                table_id=table_id,
-                record_id=record.record_id,
-                fields=update_fields
-            )
-        else:
-            # 没有子记录：只更新主记录
-            print(f"    更新主记录: {record.record_id}")
-            self.update_record_fields(
-                app_token=app_token,
-                table_id=table_id,
-                record_id=record.record_id,
-                fields=update_fields
-            )
     
     def print_records(self, records: List[ApplePackageRecord]):
         """

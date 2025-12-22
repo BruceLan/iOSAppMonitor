@@ -15,14 +15,18 @@ import json
 class FeishuBitableMonitor:
     """飞书多维表格监控类"""
     
-    def __init__(self, app_id: str, app_secret: str):
+    def __init__(self, app_id: str, app_secret: str, user_access_token: Optional[str] = None):
         """
         初始化飞书客户端
         
         Args:
             app_id: 飞书应用的 App ID
             app_secret: 飞书应用的 App Secret
+            user_access_token: 用户访问令牌（可选，用于需要用户权限的操作）
         """
+        self.app_id = app_id
+        self.app_secret = app_secret
+        self.user_access_token = user_access_token
         self.client = lark.Client.builder() \
             .app_id(app_id) \
             .app_secret(app_secret) \
@@ -73,6 +77,25 @@ class FeishuBitableMonitor:
             print(f"❌ 获取节点信息异常: {str(e)}")
             return None
     
+    def check_app_permissions(self) -> None:
+        """
+        检查应用当前拥有的权限范围
+        """
+        print(f"\n🔍 检查应用权限...")
+        print(f"  App ID: {self.app_id}")
+        
+        # 尝试获取 tenant_access_token 来查看权限
+        try:
+            # 这里我们通过尝试不同的 API 来推断权限
+            print(f"\n  已配置的权限应该包括：")
+            print(f"  - bitable:app (查看、编辑多维表格)")
+            print(f"  - wiki:space (访问知识库)")
+            print(f"\n  💡 请在飞书开放平台确认这些权限已添加并生效")
+            print(f"     https://open.feishu.cn/app/{self.app_id}/permission")
+            
+        except Exception as e:
+            print(f"  ❌ 检查异常: {str(e)}")
+    
     def test_connection(self, app_token: str) -> bool:
         """
         测试连接，验证 app_token 是否正确
@@ -115,6 +138,74 @@ class FeishuBitableMonitor:
         except Exception as e:
             print(f"❌ 连接异常: {str(e)}")
             return False
+    
+    def check_table_permissions(self, app_token: str, table_id: str) -> None:
+        """
+        检查多维表格的权限（通过尝试读取和写入来测试）
+        
+        Args:
+            app_token: 多维表格的应用 Token
+            table_id: 表格 ID
+        """
+        print(f"\n🔍 检查表格权限...")
+        print(f"  app_token: {app_token}")
+        print(f"  table_id: {table_id}")
+        
+        # 测试读取权限
+        try:
+            request = ListAppTableRecordRequest.builder() \
+                .app_token(app_token) \
+                .table_id(table_id) \
+                .page_size(1) \
+                .build()
+            
+            response = self.client.bitable.v1.app_table_record.list(request)
+            
+            if response.success():
+                print(f"  ✅ 读取权限: 正常")
+                
+                # 如果有记录，尝试测试更新权限（不实际更新，只是测试）
+                if response.data.items and len(response.data.items) > 0:
+                    test_record = response.data.items[0]
+                    print(f"\n  🧪 测试写入权限（使用第一条记录）...")
+                    print(f"     Record ID: {test_record.record_id}")
+                    
+                    # 尝试更新一个不存在的字段来测试权限（不会实际修改数据）
+                    test_request = UpdateAppTableRecordRequest.builder() \
+                        .app_token(app_token) \
+                        .table_id(table_id) \
+                        .record_id(test_record.record_id) \
+                        .request_body(
+                            AppTableRecord.builder()
+                            .fields({"_test_permission_check": "test"})
+                            .build()
+                        ) \
+                        .build()
+                    
+                    test_response = self.client.bitable.v1.app_table_record.update(test_request)
+                    
+                    if test_response.success():
+                        print(f"  ✅ 写入权限: 正常")
+                    else:
+                        print(f"  ❌ 写入权限: 失败")
+                        print(f"     错误码: {test_response.code}")
+                        print(f"     错误信息: {test_response.msg}")
+                        if hasattr(test_response, 'raw'):
+                            print(f"     完整响应: {test_response.raw}")
+            else:
+                print(f"  ❌ 读取权限: 失败 ({response.code}, {response.msg})")
+        except Exception as e:
+            print(f"  ❌ 读取权限: 异常 ({str(e)})")
+        
+        print(f"\n💡 如果写入权限失败，请确保：")
+        print(f"  1. 在飞书开放平台已添加 'bitable:app' 权限")
+        print(f"  2. 在多维表格中添加了该应用：")
+        print(f"     - 打开多维表格")
+        print(f"     - 点击右上角「...」->「高级设置」->「添加协作者」")
+        print(f"     - 搜索并添加你的应用（App ID: {self.app_id}）")
+        print(f"  3. 应用需要有「可编辑」权限，而不是「只读」权限")
+        print(f"  4. 如果是企业自建应用，需要先发布到企业内部")
+        print(f"  5. 尝试等待几分钟让权限生效，或重启飞书客户端")
     
     def get_all_records(
         self,
@@ -285,7 +376,8 @@ class FeishuBitableMonitor:
                     for item in parent_value:
                         if isinstance(item, dict):
                             record_ids = item.get('record_ids', [])
-                            if main_app.record_id in record_ids:
+                            # 确保 record_ids 不为 None
+                            if record_ids and main_app.record_id in record_ids:
                                 # 这是当前主应用的子记录
                                 child_record = ApplePackageRecord.from_feishu_fields(
                                     fields=fields,
@@ -382,33 +474,26 @@ class FeishuBitableMonitor:
                 print(f"  ❌ 查询异常: {str(e)}")
             return None
     
-    def update_record_status(
+    def update_record_fields(
         self,
         app_token: str,
         table_id: str,
         record_id: str,
-        status_field: str = "包状态",
-        new_status: str = "已上线"
+        fields: Dict[str, Any]
     ) -> bool:
         """
-        更新飞书表格中记录的包状态
+        更新飞书表格中记录的字段
         
         Args:
             app_token: 多维表格的应用 Token
             table_id: 表格 ID
             record_id: 记录 ID
-            status_field: 状态字段名称，默认为"包状态"
-            new_status: 新状态值，默认为"已上线"
+            fields: 要更新的字段字典，例如 {"包状态": "已发布", "过审日期": "2025/12/22"}
         
         Returns:
             更新是否成功
         """
         try:
-            # 构建字段更新数据
-            fields = {
-                status_field: new_status
-            }
-            
             # 构建请求
             request = UpdateAppTableRecordRequest.builder() \
                 .app_token(app_token) \
@@ -425,10 +510,15 @@ class FeishuBitableMonitor:
             response = self.client.bitable.v1.app_table_record.update(request)
             
             if response.success():
-                print(f"    ✅ 更新成功: Record ID {record_id} -> {new_status}")
+                # 格式化更新信息
+                update_info = ", ".join([f"{k}={v}" for k, v in fields.items()])
+                print(f"    ✅ 更新成功: Record ID {record_id} ({update_info})")
                 return True
             else:
-                print(f"    ❌ 更新失败: Record ID {record_id}, 错误: {response.code}, {response.msg}")
+                print(f"    ❌ 更新失败: Record ID {record_id}")
+                print(f"       错误码: {response.code}")
+                print(f"       错误信息: {response.msg}")
+                
                 return False
                 
         except Exception as e:
@@ -572,6 +662,9 @@ def main():
     # 配置信息
     APP_ID = "cli_a9ccfb2bbf385cc6"
     APP_SECRET = "4RrEVRd6jXTBrPbOxncNEbprT34AloaH"
+
+    # APP_ID = "cli_a80a0bde81bc9013"
+    # APP_SECRET = "4RrEVRd6jXTBrPbOxncNEbprT34AloaH"
     
     # Wiki URL（知识库下的多维表格）
     WIKI_URL = "https://la1a59fdywl.feishu.cn/wiki/Nzmew2Przi0hQAkgbGHcTCvfn3c?fromScene=spaceOverview&table=tblburubNacfxW79&view=vewGZJS1AM"
@@ -614,6 +707,10 @@ def main():
     if not monitor.test_connection(app_token):
         print("\n⚠️  连接失败，请检查 app_token 是否正确")
         return []
+    
+    # 检查表格权限
+    if table_id:
+        monitor.check_table_permissions(app_token, table_id)
     
     print("\n" + "=" * 60)
     print("步骤 3: 读取并筛选数据")
@@ -664,8 +761,11 @@ def main():
     print("  只显示指定版本已上线的应用\n")
     
     # 飞书机器人 Webhook URL（稍后配置）
-    # FEISHU_WEBHOOK_URL = "https://open.feishu.cn/open-apis/bot/v2/hook/73f8286b-b226-4c72-9259-9ff9c341253f"  # TODO: 配置飞书机器人 URL
-    FEISHU_WEBHOOK_URL = "https://open.feishu.cn/open-apis/bot/v2/hook/a43899b8-8f5f-4d28-9938-be3cfd3b02de"  # TODO: 配置飞书机器人 URL
+    FEISHU_WEBHOOK_URL = "https://open.feishu.cn/open-apis/bot/v2/hook/73f8286b-b226-4c72-9259-9ff9c341253f"  # TODO: 配置飞书机器人 URL
+    
+    # 获取当前日期（格式：2025/11/12）
+    from datetime import datetime
+    current_date = datetime.now().strftime("%Y/%m/%d")
     
     for record in filtered_records:
         if not record.apple_id:
@@ -687,13 +787,13 @@ def main():
                 print(f"{'='*60}")
                 print(f"✅ {record.package_name} - 指定版本已上线")
                 print(f"{'='*60}")
-                print(f"  📱 应用名称: {app_status['track_name']}")
+                print(f"  � 当应用名称: {app_status['track_name']}")
                 print(f"  📦 版本号: {store_version} (本地最新版本: {local_latest_version})")
                 print(f"  🆔 Apple ID: {record.apple_id}")
                 print(f"  📅 发布日期: {app_status['release_date']}")
                 print(f"  🔄 当前版本发布日期: {app_status['current_version_release_date']}")
                 if app_status.get('track_view_url'):
-                    print(f"  🔗 应用链接: {app_status['track_view_url']}")
+                    print(f"  �书 应用链接: {app_status['track_view_url']}")
                 print()
                 
                 # 更新飞书表格状态
@@ -710,34 +810,40 @@ def main():
                     if target_child:
                         # 更新子记录状态
                         print(f"    更新子记录: {target_child.record_id} (版本: {target_child.version})")
-                        monitor.update_record_status(
+                        monitor.update_record_fields(
                             app_token=app_token,
                             table_id=table_id,
                             record_id=target_child.record_id,
-                            status_field="包状态",
-                            new_status="已发布"
+                            fields={
+                                "包状态": "已发布",
+                                "过审日期": current_date
+                            }
                         )
                     else:
                         print(f"    ⚠️  未找到版本号为 {local_latest_version} 的子记录")
                     
                     # 更新主记录状态
                     print(f"    更新主记录: {record.record_id}")
-                    monitor.update_record_status(
+                    monitor.update_record_fields(
                         app_token=app_token,
                         table_id=table_id,
                         record_id=record.record_id,
-                        status_field="包状态",
-                        new_status="已发布"
+                        fields={
+                            "包状态": "已发布",
+                            "过审日期": current_date
+                        }
                     )
                 else:
                     # 没有子记录：只更新主记录
                     print(f"    更新主记录: {record.record_id}")
-                    monitor.update_record_status(
+                    monitor.update_record_fields(
                         app_token=app_token,
                         table_id=table_id,
                         record_id=record.record_id,
-                        status_field="包状态",
-                        new_status="已发布"
+                        fields={
+                            "包状态": "已发布",
+                            "过审日期": current_date
+                        }
                     )
                 
                 # 发送飞书消息

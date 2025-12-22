@@ -32,6 +32,7 @@ class UserInfo:
     en_name: str
     id: str
     name: str
+    avatar_url: Optional[str] = None
 
 
 @dataclass

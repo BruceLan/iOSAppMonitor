@@ -882,10 +882,12 @@ def main():
             "mention_all": True  # @ 所有人
         },
         {
-            "chat_id": "oc_39d562fd54ed57bfa0ede9a8ce25b458",  # 群2 - 替换为实际的群聊 ID
+            "chat_id": "oc_26e985ac87884ce23bc1c181cf0f61dc",  # 群2 - 替换为实际的群聊 ID
             "mention_user_ids": [  # @ 多个用户（列表形式）
-                "ou_510b8e2d36f6330ef8dc917167bde9bf",
-                "ou_3ce54c14f9ec3e6de326165614f4872d",
+                "ou_510b8e2d36f6330ef8dc917167bde9bf", # dengjiaxi
+                "ou_3ce54c14f9ec3e6de326165614f4872d", # lanzhihong
+                "ou_135b706486fe7cdd5c715d05ff23177e", # chenwenhan 
+                "ou_162731495f6df9dfe218454ab39e0b26", # tangluoya 
                   # 替换为实际的用户 open_id
                 # "ou_yyyyyyyyyyyyyyyyyyyyyyyy",  # 可以添加更多用户
             ]

@@ -771,12 +771,20 @@ def parse_wiki_url(url: str) -> Tuple[Optional[str], Optional[str], Optional[str
 
 def main():
     """主函数"""
-    # 配置信息
-    APP_ID = "cli_a9ccfb2bbf385cc6"
-    APP_SECRET = "4RrEVRd6jXTBrPbOxncNEbprT34AloaH"
+    # 配置信息（从环境变量读取）
+    import os
     
-    # Wiki URL（知识库下的多维表格）
-    WIKI_URL = "https://la1a59fdywl.feishu.cn/wiki/Nzmew2Przi0hQAkgbGHcTCvfn3c?fromScene=spaceOverview&table=tblburubNacfxW79&view=vewGZJS1AM"
+    APP_ID = os.getenv("FEISHU_APP_ID")
+    APP_SECRET = os.getenv("FEISHU_APP_SECRET")
+    WIKI_URL = os.getenv("FEISHU_WIKI_URL")
+    
+    if not APP_ID or not APP_SECRET or not WIKI_URL:
+        print("❌ 错误：缺少必要的环境变量")
+        print("请设置以下环境变量：")
+        print("  - FEISHU_APP_ID")
+        print("  - FEISHU_APP_SECRET")
+        print("  - FEISHU_WIKI_URL")
+        return []
     
     # 创建监控实例
     monitor = FeishuBitableMonitor(APP_ID, APP_SECRET)
@@ -867,17 +875,17 @@ def main():
     print("  只显示指定版本已上线的应用\n")
     
     # 飞书通知配置（支持多个群，每个群可以配置不同的 @ 规则）
+    # ⚠️ 请替换为实际的群聊 ID 和用户 ID
     FEISHU_NOTIFICATIONS = [
         {
-            "chat_id": "oc_21fbcfe60694ec387bfca22241426871",  # 群1
+            "chat_id": "oc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",  # 群1 - 替换为实际的群聊 ID
             "mention_all": True  # @ 所有人
         },
         {
-            "chat_id": "oc_39d562fd54ed57bfa0ede9a8ce25b458",  # 群2
+            "chat_id": "oc_yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",  # 群2 - 替换为实际的群聊 ID
             "mention_user_ids": [  # @ 多个用户（列表形式）
-                "ou_510b8e2d36f6330ef8dc917167bde9bf",
-                "ou_3ce54c14f9ec3e6de326165614f4872d"
-                # "ou_xxxxxxxxxxxxxxxxxxxxxxxx",  # 可以添加更多用户
+                "ou_xxxxxxxxxxxxxxxxxxxxxxxx",  # 替换为实际的用户 open_id
+                # "ou_yyyyyyyyyyyyyyyyyyyyyyyy",  # 可以添加更多用户
             ]
         }
     ]

@@ -778,6 +778,7 @@ def main():
     APP_SECRET = os.getenv("FEISHU_APP_SECRET")
     WIKI_URL = os.getenv("FEISHU_WIKI_URL")
     
+
     if not APP_ID or not APP_SECRET or not WIKI_URL:
         print("❌ 错误：缺少必要的环境变量")
         print("请设置以下环境变量：")
@@ -824,7 +825,6 @@ def main():
     if not monitor.test_connection(app_token):
         print("\n⚠️  连接失败，请检查 app_token 是否正确")
         return []
-    
     
     print("\n" + "=" * 60)
     print("步骤 3: 读取并筛选数据")
@@ -899,52 +899,85 @@ def main():
     current_timestamp = int(datetime.now().timestamp() * 1000)
     
     for record in filtered_records:
+
         if not record.apple_id:
+            print(f"{'='*60}")
+            print(f"❌ {record.package_name} - 没有 Apple ID")
+            print(f"{'='*60}")
+            print()
             continue
         
         # 获取本地最新版本
         local_latest_version = record.get_latest_version()
         if not local_latest_version:
+            print(f"{'='*60}")
+            print(f"❌ {record.package_name} - 没有最新版本")
+            print(f"{'='*60}")
+            print()
             continue
         
         # 查询 Apple Store 状态
         app_status = monitor.query_apple_app_status(record.apple_id, verbose=False)
         
+        isSelectVersionOnline = False
+
         if app_status and app_status['is_online']:
             store_version = app_status['version']
             
             # 只有当 Store 版本与本地最新版本匹配时，才处理
             if store_version and store_version == local_latest_version:
-                print(f"{'='*60}")
-                print(f"✅ {record.package_name} - 指定版本已上线")
-                print(f"{'='*60}")
-                print(f"  � 当应用名称: {app_status['track_name']}")
-                print(f"  📦 版本号: {store_version} (本地最新版本: {local_latest_version})")
-                print(f"  🆔 Apple ID: {record.apple_id}")
-                print(f"  📅 发布日期: {app_status['release_date']}")
-                print(f"  🔄 当前版本发布日期: {app_status['current_version_release_date']}")
-                if app_status.get('track_view_url'):
-                    print(f"  �书 应用链接: {app_status['track_view_url']}")
-                print()
-                
-                # 更新飞书表格状态
-                monitor.update_app_status(
-                    app_token=app_token,
-                    table_id=table_id,
-                    record=record,
-                    latest_version=local_latest_version,
-                    current_date_timestamp=current_timestamp
-                )
+                isSelectVersionOnline = True;
+
                 
                 # 发送飞书通知到多个群聊
-                monitor.send_notifications(
-                    notifications=FEISHU_NOTIFICATIONS,
-                    app_name=record.package_name,
-                    stage=record.stage or "未知",
-                    version=local_latest_version
-                )
-                print()
-    
+                # monitor.send_notifications(
+                #     notifications=FEISHU_NOTIFICATIONS,
+                #     app_name=record.package_name,
+                #     stage=record.stage or "未知",
+                #     version=local_latest_version
+                # )
+             
+        if isSelectVersionOnline :
+            print(f"{'='*60}")
+            print(f"✅ {record.package_name} - 指定版本已上线")
+            print(f"{'='*60}")
+            print(f"  � 当应用名称: {app_status['track_name']}")
+            print(f"  📦 版本号: {store_version} (本地最新版本: {local_latest_version})")
+            print(f"  🆔 Apple ID: {record.apple_id}")
+            print(f"  📅 发布日期: {app_status['release_date']}")
+            print(f"  🔄 当前版本发布日期: {app_status['current_version_release_date']}")
+            if app_status.get('track_view_url'):
+                print(f"  应用链接: {app_status['track_view_url']}")
+            print()
+                
+            # 更新飞书表格状态
+            monitor.update_app_status(
+                app_token=app_token,
+                table_id=table_id,
+                record=record,
+                latest_version=local_latest_version,
+                current_date_timestamp=current_timestamp
+            )
+
+            # 发送飞书通知到多个群聊
+            monitor.send_notifications(
+                notifications=FEISHU_NOTIFICATIONS,
+                app_name=record.package_name,
+                stage=record.stage or "未知",
+                version=local_latest_version
+            )
+        else:
+            print(f"{'='*60}")
+            print(f"❌ {record.package_name} - 指定版本未上线")
+            print(f"{'='*60}")
+            print(f"  � 当应用名称: {record.package_name}")
+            print(f"  📦 版本号: {local_latest_version}")
+            print(f"  🆔 Apple ID: {record.apple_id}")
+            print(f"  📅 发布日期: {record.submission_time}")
+            print(f"  🔄 当前版本发布日期: {record.status_update_time}")
+            print()                        
+
+
     # 打印结果
     # monitor.print_records(filtered_records)
     

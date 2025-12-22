@@ -878,13 +878,15 @@ def main():
     # ⚠️ 请替换为实际的群聊 ID 和用户 ID
     FEISHU_NOTIFICATIONS = [
         {
-            "chat_id": "oc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",  # 群1 - 替换为实际的群聊 ID
+            "chat_id": "oc_21fbcfe60694ec387bfca22241426871",  # 群1 - 替换为实际的群聊 ID
             "mention_all": True  # @ 所有人
         },
         {
-            "chat_id": "oc_yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",  # 群2 - 替换为实际的群聊 ID
+            "chat_id": "oc_39d562fd54ed57bfa0ede9a8ce25b458",  # 群2 - 替换为实际的群聊 ID
             "mention_user_ids": [  # @ 多个用户（列表形式）
-                "ou_xxxxxxxxxxxxxxxxxxxxxxxx",  # 替换为实际的用户 open_id
+                "ou_510b8e2d36f6330ef8dc917167bde9bf",
+                "ou_3ce54c14f9ec3e6de326165614f4872d",
+                  # 替换为实际的用户 open_id
                 # "ou_yyyyyyyyyyyyyyyyyyyyyyyy",  # 可以添加更多用户
             ]
         }

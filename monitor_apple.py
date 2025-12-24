@@ -646,6 +646,12 @@ class FeishuBitableMonitor:
             "包状态": "已发布",
             "过审时间": current_date_timestamp  # 使用时间戳（毫秒）
         }
+
+
+        # 更新主记录的字段
+        update_fields = {
+            "包状态": "已发布",
+        }    
         
         if record.children:
             # 有子记录：找到对应版本号的子记录并更新
@@ -664,11 +670,14 @@ class FeishuBitableMonitor:
                     record_id=target_child.record_id,
                     fields=update_child_fields
                 )
+        else:        
+            # 如果没有子记录, 那么当前记录只有一条记录，则记录过审时间
+            update_fields = {
+                "包状态": "已发布",
+                "过审时间": current_date_timestamp 
+            } 
+
         
-        # 更新主记录的字段
-        update_fields = {
-            "包状态": "已发布",
-        }    
 
         # 没有子记录：只更新主记录, 只更新状态，不更新时间
         print(f"    更新主记录: {record.record_id}")

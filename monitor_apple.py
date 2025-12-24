@@ -488,7 +488,7 @@ class FeishuBitableMonitor:
             return False
         
         try:
-            message_text = f"{app_name} {stage} {version} 过审并发布了"
+            message_text = f"{app_name} {stage} V{version} 过审并发布了"
             
             # 构建富文本消息内容（支持 @ 功能）
             content_parts = []

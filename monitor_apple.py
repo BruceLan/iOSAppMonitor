@@ -892,6 +892,7 @@ def main():
                 "ou_3ce54c14f9ec3e6de326165614f4872d", # lanzhihong
                 "ou_135b706486fe7cdd5c715d05ff23177e", # chenwenhan 
                 "ou_162731495f6df9dfe218454ab39e0b26", # tangluoya 
+                "ou_07f25dbb48dbb8d6c7adbec361eec97a", # suziwei
                   # 替换为实际的用户 open_id
                 # "ou_yyyyyyyyyyyyyyyyyyyyyyyy",  # 可以添加更多用户
             ]

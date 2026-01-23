@@ -105,7 +105,7 @@ class FeishuBitableMonitor:
         Returns:
             多维表格的 app_token（即 obj_token），如果失败返回 None
         """
-        print(f"🔍 从知识库节点获取 app_token，节点 token: {wiki_node_token}")
+        log_info(f"🔍 从知识库节点获取 app_token，节点 token: {wiki_node_token}")
         try:
             request = GetNodeSpaceRequest.builder() \
                 .token(wiki_node_token) \
@@ -118,45 +118,45 @@ class FeishuBitableMonitor:
                 obj_type = node.obj_type
                 obj_token = node.obj_token
                 
-                print(f"✅ 成功获取节点信息")
-                print(f"  - 节点类型: {obj_type}")
-                print(f"  - obj_token (app_token): {obj_token}")
+                log_success("成功获取节点信息")
+                log_info(f"  - 节点类型: {obj_type}")
+                log_info(f"  - obj_token (app_token): {obj_token}")
                 
                 if obj_type == "bitable":
-                    print(f"✅ 确认是多维表格节点")
+                    log_success("确认是多维表格节点")
                     return obj_token
                 else:
-                    print(f"⚠️  节点类型不是多维表格 (bitable)，而是: {obj_type}")
+                    log_warning(f"节点类型不是多维表格 (bitable)，而是: {obj_type}")
                     return None
             else:
-                print(f"❌ 获取节点信息失败: {response.code}, {response.msg}")
-                print(f"\n可能的原因：")
-                print(f"1. wiki_node_token 不正确")
-                print(f"2. 应用没有访问该知识库节点的权限")
-                print(f"3. 节点不存在或已被删除")
+                log_error(f"获取节点信息失败: {response.code}, {response.msg}")
+                log_info("\n可能的原因：")
+                log_info("1. wiki_node_token 不正确")
+                log_info("2. 应用没有访问该知识库节点的权限")
+                log_info("3. 节点不存在或已被删除")
                 return None
         except Exception as e:
-            print(f"❌ 获取节点信息异常: {str(e)}")
+            log_error(f"获取节点信息异常: {str(e)}")
             return None
     
     def check_app_permissions(self) -> None:
         """
         检查应用当前拥有的权限范围
         """
-        print(f"\n🔍 检查应用权限...")
-        print(f"  App ID: {self.app_id}")
+        log_info("🔍 检查应用权限...")
+        log_info(f"  App ID: {self.app_id}")
         
         # 尝试获取 tenant_access_token 来查看权限
         try:
             # 这里我们通过尝试不同的 API 来推断权限
-            print(f"\n  已配置的权限应该包括：")
-            print(f"  - bitable:app (查看、编辑多维表格)")
-            print(f"  - wiki:space (访问知识库)")
-            print(f"\n  💡 请在飞书开放平台确认这些权限已添加并生效")
-            print(f"     https://open.feishu.cn/app/{self.app_id}/permission")
+            log_info("  已配置的权限应该包括：")
+            log_info("  - bitable:app (查看、编辑多维表格)")
+            log_info("  - wiki:space (访问知识库)")
+            log_info("  💡 请在飞书开放平台确认这些权限已添加并生效")
+            log_info(f"     https://open.feishu.cn/app/{self.app_id}/permission")
             
         except Exception as e:
-            print(f"  ❌ 检查异常: {str(e)}")
+            log_error(f"检查异常: {str(e)}")
     
     def test_connection(self, app_token: str) -> bool:
         """
@@ -168,7 +168,6 @@ class FeishuBitableMonitor:
         Returns:
             连接是否成功
         """
-        print(f"🔍 测试连接，app_token: {app_token}")
         try:
             request = ListAppTableRequest.builder() \
                 .app_token(app_token) \
@@ -178,27 +177,17 @@ class FeishuBitableMonitor:
             
             if response.success():
                 tables = response.data.items
-                print(f"✅ 连接成功！找到 {len(tables)} 个表格")
-                print("\n可用的表格列表：")
+                log_success(f"连接成功！找到 {len(tables)} 个表格")
+                log_info("可用的表格列表：")
                 for table in tables:
-                    print(f"  - 表格名称: {table.name}")
-                    print(f"    表格 ID: {table.table_id}")
-                    print()
+                    log_info(f"  - 表格名称: {table.name}")
+                    log_info(f"    表格 ID: {table.table_id}")
                 return True
             else:
-                print(f"❌ 连接失败: {response.code}, {response.msg}")
-                print("\n可能的原因：")
-                print("1. app_token 不正确")
-                print("2. 应用没有访问该多维表格的权限")
-                print("3. 多维表格不存在或已被删除")
-                print("\n💡 如何获取正确的 app_token：")
-                print("   1. 打开飞书多维表格")
-                print("   2. 点击右上角「...」->「复制链接」")
-                print("   3. 链接格式应该是: https://xxx.feishu.cn/base/AppToken?table=TableId")
-                print("   4. 从链接中提取 AppToken 部分")
+                log_error(f"连接失败: {response.code}, {response.msg}")
                 return False
         except Exception as e:
-            print(f"❌ 连接异常: {str(e)}")
+            log_error(f"连接异常: {str(e)}")
             return False
     
     
@@ -238,7 +227,7 @@ class FeishuBitableMonitor:
             response = self.client.bitable.v1.app_table_record.list(request)
             
             if not response.success():
-                print(f"❌ 请求失败: {response.code}, {response.msg}")
+                log_error(f"请求失败: {response.code}, {response.msg}")
                 break
             
             items = response.data.items
@@ -286,22 +275,20 @@ class FeishuBitableMonitor:
         Returns:
             主应用记录列表（每个记录包含其子记录）
         """
-        print(f"开始读取多维表格，查询逻辑：")
-        print(f"  步骤1: 查找父记录为空且{status_field} = {target_status}的记录（主应用）")
-        print(f"  步骤2: 查找步骤1中所有主应用的子记录（版本记录）")
-        print(f"  app_token: {app_token}")
-        print(f"  table_id: {table_id}")
+        log_info("开始读取多维表格，查询逻辑：")
+        log_info(f"  步骤1: 查找父记录为空且{status_field} = {target_status}的记录（主应用）")
+        log_info(f"  步骤2: 查找步骤1中所有主应用的子记录（版本记录）")
+        log_info(f"  table_id: {table_id}")
         if view_id:
-            print(f"  view_id: {view_id} (指定视图)")
-        print()
+            log_info(f"  view_id: {view_id} (指定视图)")
         
         # 步骤1: 获取所有记录
-        print("步骤1: 获取所有记录...")
+        log_info("步骤1: 获取所有记录...")
         all_raw_records = self.get_all_records(app_token, table_id, view_id)
-        print(f"  共获取 {len(all_raw_records)} 条记录")
+        log_info(f"  共获取 {len(all_raw_records)} 条记录")
         
         # 步骤2: 筛选父记录为空且包状态=提审中的主应用记录
-        print("\n步骤2: 筛选主应用记录（父记录为空且包状态=提审中）...")
+        log_info("步骤2: 筛选主应用记录（父记录为空且包状态=提审中）...")
         main_apps: List[ApplePackageRecord] = []
         main_app_record_ids = set()
         
@@ -354,10 +341,10 @@ class FeishuBitableMonitor:
                 main_apps.append(package_record)
                 main_app_record_ids.add(raw_record['record_id'])
         
-        print(f"  找到 {len(main_apps)} 个主应用")
+        log_info(f"  找到 {len(main_apps)} 个主应用")
         
         # 步骤3: 查找每个主应用的所有子记录（版本记录）
-        print("\n步骤3: 查找每个主应用的子记录（版本记录）...")
+        log_info("步骤3: 查找每个主应用的子记录（版本记录）...")
         for main_app in main_apps:
             children = []
             for raw_record in all_raw_records:
@@ -382,9 +369,9 @@ class FeishuBitableMonitor:
                                 break
             
             main_app.children = children
-            print(f"  主应用 {main_app.package_name} (ID: {main_app.record_id}) 有 {len(children)} 条版本记录")
+            log_info(f"  主应用 {main_app.package_name} (ID: {main_app.record_id}) 有 {len(children)} 条版本记录")
         
-        print(f"\n✅ 查询完成，共找到 {len(main_apps)} 个主应用及其版本记录")
+        log_success(f"查询完成，共找到 {len(main_apps)} 个主应用及其版本记录")
         return main_apps
     
     def query_apple_app_status(self, apple_id: int, verbose: bool = False) -> Optional[Dict[str, Any]]:
@@ -412,9 +399,9 @@ class FeishuBitableMonitor:
         
         try:
             if verbose:
-                print(f"\n🔍 查询 Apple 应用状态，Apple ID: {apple_id}")
-                print(f"  API URL: {url}")
-                print(f"  参数: {params}")
+                log_info(f"🔍 查询 Apple 应用状态，Apple ID: {apple_id}")
+                log_info(f"  API URL: {url}")
+                log_info(f"  参数: {params}")
             
             response = requests.get(url, params=params, timeout=10)
             response.raise_for_status()
@@ -423,7 +410,7 @@ class FeishuBitableMonitor:
             
             if data.get('resultCount', 0) == 0:
                 if verbose:
-                    print(f"  ⚠️  未找到应用信息（Apple ID: {apple_id}）")
+                    log_warning(f"未找到应用信息（Apple ID: {apple_id}）")
                 return {
                     'is_online': False,
                     'version': None,
@@ -445,28 +432,26 @@ class FeishuBitableMonitor:
             }
             
             if verbose:
-                print(f"  ✅ 查询成功")
-                print(f"  应用名称: {app_info['track_name']}")
-                print(f"  版本号: {app_info['version']}")
-                print(f"  是否上线: 是")
-                print(f"  发布日期: {app_info['release_date']}")
-                print(f"  当前版本发布日期: {app_info['current_version_release_date']}")
-                print(f"\n  完整信息:")
-                print(json.dumps(result, indent=2, ensure_ascii=False))
+                log_success("查询成功")
+                log_info(f"  应用名称: {app_info['track_name']}")
+                log_info(f"  版本号: {app_info['version']}")
+                log_info(f"  是否上线: 是")
+                log_info(f"  发布日期: {app_info['release_date']}")
+                log_info(f"  当前版本发布日期: {app_info['current_version_release_date']}")
+                log_info("\n  完整信息:")
+                log_info(json.dumps(result, indent=2, ensure_ascii=False))
             
             return app_info
             
         except requests.exceptions.RequestException as e:
-            if verbose:
-                print(f"  ❌ 请求失败: {str(e)}")
+            
+            log_error(f"请求失败: {str(e)}")
             return None
         except json.JSONDecodeError as e:
-            if verbose:
-                print(f"  ❌ JSON 解析失败: {str(e)}")
+            log_error(f"JSON 解析失败: {str(e)}")
             return None
         except Exception as e:
-            if verbose:
-                print(f"  ❌ 查询异常: {str(e)}")
+            log_error(f"查询异常: {str(e)}")
             return None
     
     def update_record_fields(
@@ -507,17 +492,17 @@ class FeishuBitableMonitor:
             if response.success():
                 # 格式化更新信息
                 update_info = ", ".join([f"{k}={v}" for k, v in fields.items()])
-                print(f"    ✅ 更新成功: Record ID {record_id} ({update_info})")
+                log_success(f"更新成功: Record ID {record_id} ({update_info})")
                 return True
             else:
-                print(f"    ❌ 更新失败: Record ID {record_id}")
-                print(f"       错误码: {response.code}")
-                print(f"       错误信息: {response.msg}")
+                log_error(f"更新失败: Record ID {record_id}")
+                log_info(f"  错误码: {response.code}")
+                log_info(f"  错误信息: {response.msg}")
                 
                 return False
                 
         except Exception as e:
-            print(f"    ❌ 更新异常: Record ID {record_id}, 错误: {str(e)}")
+            log_error(f"更新异常: Record ID {record_id}, 错误: {str(e)}")
             return False
     
     def send_feishu_message(
@@ -544,7 +529,7 @@ class FeishuBitableMonitor:
             发送是否成功
         """
         if not chat_id:
-            print(f"    ⚠️  飞书群聊 ID 未配置，跳过发送消息")
+            log_warning("飞书群聊 ID 未配置，跳过发送消息")
             return False
         
         try:
@@ -615,22 +600,22 @@ class FeishuBitableMonitor:
                     mention_info = " (@所有人)"
                 elif mention_user_ids:
                     mention_info = f" (@{len(mention_user_ids)}人)"
-                print(f"    ✅ 飞书消息发送成功{mention_info}: {message_text}")
+                log_success(f"飞书消息发送成功{mention_info}: {message_text}")
                 return True
             else:
-                print(f"    ❌ 飞书消息发送失败")
-                print(f"       错误码: {response.code}")
-                print(f"       错误信息: {response.msg}")
+                log_error("飞书消息发送失败")
+                log_info(f"  错误码: {response.code}")
+                log_info(f"  错误信息: {response.msg}")
                 if response.code == 230002:
-                    print(f"       💡 机器人不在该群聊中，请先将应用添加到群聊")
-                    print(f"          - 打开飞书群聊")
-                    print(f"          - 点击右上角「...」->「设置」")
-                    print(f"          - 找到「群机器人」->「添加机器人」")
-                    print(f"          - 搜索并添加你的应用")
+                    log_error("  💡 机器人不在该群聊中，请先将应用添加到群聊")
+                    log_info("     - 打开飞书群聊")
+                    log_info("     - 点击右上角「...」->「设置」")
+                    log_info("     - 找到「群机器人」->「添加机器人」")
+                    log_info("     - 搜索并添加你的应用")
                 return False
                 
         except Exception as e:
-            print(f"    ❌ 发送飞书消息异常: {str(e)}")
+            log_error(f"发送飞书消息异常: {str(e)}")
             return False
     
     def send_notifications(
@@ -659,17 +644,17 @@ class FeishuBitableMonitor:
             ]
         """
         if not notifications:
-            print(f"    ⚠️  未配置飞书通知，跳过发送")
+            log_warning("未配置飞书通知，跳过发送")
             return
         
-        print(f"  📨 发送飞书通知到 {len(notifications)} 个群聊...")
+        log_info(f"📨 发送飞书通知到 {len(notifications)} 个群聊...")
         for config in notifications:
             chat_id = config.get("chat_id")
             mention_all = config.get("mention_all", False)
             mention_user_ids = config.get("mention_user_ids")
             
             if not chat_id:
-                print(f"    ⚠️  通知配置缺少 chat_id，跳过")
+                log_warning("通知配置缺少 chat_id，跳过")
                 continue
             
             self.send_feishu_message(
@@ -699,7 +684,7 @@ class FeishuBitableMonitor:
             latest_version: 最新版本号
             current_date_timestamp: 当前日期的时间戳（毫秒）
         """
-        print(f"  📝 更新飞书表格状态...")
+        log_info("📝 更新飞书表格状态...")
 
         # 要更新的字段
         update_child_fields = {
@@ -723,7 +708,7 @@ class FeishuBitableMonitor:
             
             if target_child:
                 # 更新子记录状态
-                print(f"    更新子记录: {target_child.record_id} (版本: {target_child.version})")
+                log_info(f"  更新子记录: {target_child.record_id} (版本: {target_child.version})")
                 self.update_record_fields(
                     app_token=app_token,
                     table_id=table_id,
@@ -740,7 +725,7 @@ class FeishuBitableMonitor:
         
 
         # 没有子记录：只更新主记录, 只更新状态，不更新时间
-        print(f"    更新主记录: {record.record_id}")
+        log_info(f"  更新主记录: {record.record_id}")
         self.update_record_fields(
             app_token=app_token,
             table_id=table_id,
@@ -826,7 +811,7 @@ def parse_wiki_url(url: str) -> Tuple[Optional[str], Optional[str], Optional[str
             
             return wiki_node_token, table_id, view_id
     except Exception as e:
-        print(f"解析 URL 失败: {str(e)}")
+        log_error(f"解析 URL 失败: {str(e)}")
     
     return None, None, None
 
@@ -851,10 +836,10 @@ def main():
 
     if not APP_ID or not APP_SECRET or not WIKI_URL:
         log_error("缺少必要的环境变量")
-        print("请设置以下环境变量：")
-        print("  - FEISHU_APP_ID")
-        print("  - FEISHU_APP_SECRET")
-        print("  - FEISHU_WIKI_URL")
+        log_info("请设置以下环境变量：")
+        log_info("  - FEISHU_APP_ID")
+        log_info("  - FEISHU_APP_SECRET")
+        log_info("  - FEISHU_WIKI_URL")
         return []
     
     # 创建监控实例
@@ -881,10 +866,10 @@ def main():
     
     if not app_token:
         log_error("无法获取 app_token")
-        print("   请检查：")
-        print("   1. 应用是否有访问知识库的权限")
-        print("   2. wiki_node_token 是否正确")
-        print("   3. 节点是否是多维表格类型")
+        log_info("   请检查：")
+        log_info("   1. 应用是否有访问知识库的权限")
+        log_info("   2. wiki_node_token 是否正确")
+        log_info("   3. 节点是否是多维表格类型")
         log_endgroup()
         return []
     log_endgroup()
@@ -1004,18 +989,15 @@ def main():
                 #     version=local_latest_version
                 # )
              
-        if isSelectVersionOnline :
-            log_info(f"{'='*60}")
-            log_info(f"✅ {record.package_name} - 指定版本已上线")
-            log_info(f"{'='*60}")
-            log_info(f"  � 当应用名称: {app_status['track_name']}")
+        if isSelectVersionOnline:
+            log_success(f"{record.package_name} - 指定版本已上线")
+            log_info(f"  📱 应用名称: {app_status['track_name']}")
             log_info(f"  📦 版本号: {store_version} (本地最新版本: {local_latest_version})")
             log_info(f"  🆔 Apple ID: {record.apple_id}")
             log_info(f"  📅 发布日期: {app_status['release_date']}")
             log_info(f"  🔄 当前版本发布日期: {app_status['current_version_release_date']}")
             if app_status.get('track_view_url'):
-                log_info(f"  应用链接: {app_status['track_view_url']}")
-            
+                log_info(f"  🔗 应用链接: {app_status['track_view_url']}")
                 
             # 更新飞书表格状态
             monitor.update_app_status(
@@ -1033,15 +1015,12 @@ def main():
                 stage=record.stage or "未知",
                 version=local_latest_version
             )
+            success_count += 1
         else:
-            log_info(f"{'='*60}")
-            log_info(f"❌ {record.package_name} - 指定版本未上线")
-            log_info(f"{'='*60}")
-            log_info(f"  � 当应用名称: {record.package_name}")
+            log_info(f"{record.package_name} - 指定版本未上线")
+            log_info(f"  📱 应用名称: {record.package_name}")
             log_info(f"  📦 版本号: {local_latest_version}")
             log_info(f"  🆔 Apple ID: {record.apple_id}")
-            log_info(f"  📅 发布日期: {record.submission_time}")
-            log_info(f"  🔄 当前版本发布日期: {record.status_update_time}")
  
     log_endgroup()
     
@@ -1064,6 +1043,6 @@ if __name__ == "__main__":
     except Exception as e:
         log_error(f"监控任务执行失败: {str(e)}")
         import traceback
-        print(traceback.format_exc())
+        log_info(traceback.format_exc())
         exit(1)
 

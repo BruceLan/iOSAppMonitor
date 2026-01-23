@@ -12,6 +12,66 @@ from model import ApplePackageRecord
 import requests
 import json
 import uuid
+import os
+from datetime import datetime
+
+
+# ============================================
+# GitHub Actions 日志辅助函数
+# ============================================
+
+def is_github_actions() -> bool:
+    """检查是否在 GitHub Actions 环境中运行"""
+    return os.getenv('GITHUB_ACTIONS') == 'true'
+
+
+def log_group(title: str):
+    """开始一个可折叠的日志组"""
+    if is_github_actions():
+        print(f"::group::{title}")
+    else:
+        print(f"\n{'='*60}")
+        print(f"{title}")
+        print(f"{'='*60}")
+
+
+def log_endgroup():
+    """结束日志组"""
+    if is_github_actions():
+        print("::endgroup::")
+
+
+def log_info(message: str):
+    """输出信息日志"""
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    if is_github_actions():
+        print(f"[{timestamp}] {message}")
+    else:
+        print(f"[{timestamp}] {message}")
+
+
+def log_warning(message: str):
+    """输出警告日志"""
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    if is_github_actions():
+        print(f"::warning::{message}")
+    print(f"[{timestamp}] ⚠️  {message}")
+
+
+def log_error(message: str):
+    """输出错误日志"""
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    if is_github_actions():
+        print(f"::error::{message}")
+    print(f"[{timestamp}] ❌ {message}")
+
+
+def log_success(message: str):
+    """输出成功日志"""
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    if is_github_actions():
+        print(f"::notice::{message}")
+    print(f"[{timestamp}] ✅ {message}")
 
 
 class FeishuBitableMonitor:
@@ -720,7 +780,6 @@ class FeishuBitableMonitor:
                 dev_names = [dev.name for dev in main_app.developers if hasattr(dev, 'name')]
                 print(f"  开发人员: {', '.join(dev_names) if dev_names else 'N/A'}")
             if main_app.submission_time:
-                from datetime import datetime
                 dt = datetime.fromtimestamp(main_app.submission_time / 1000)
                 print(f"  提审时间: {dt.strftime('%Y-%m-%d %H:%M:%S')}")
             
@@ -730,7 +789,6 @@ class FeishuBitableMonitor:
                 for child_idx, child in enumerate(main_app.children, 1):
                     print(f"     [{child_idx}] 版本: {child.version} | 状态: {child.package_status} | Record ID: {child.record_id}")
                     if child.submission_time:
-                        from datetime import datetime
                         dt = datetime.fromtimestamp(child.submission_time / 1000)
                         print(f"         提审时间: {dt.strftime('%Y-%m-%d %H:%M:%S')}")
             else:
@@ -775,16 +833,24 @@ def parse_wiki_url(url: str) -> Tuple[Optional[str], Optional[str], Optional[str
 
 def main():
     """主函数"""
-    # 配置信息（从环境变量读取）
-    import os
+    # 打印任务开始信息
+    log_group("🚀 Apple 应用监控任务开始")
+    log_info(f"执行时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    log_info(f"运行环境: {'GitHub Actions' if is_github_actions() else 'Local'}")
+    log_endgroup()
     
+    # 配置信息（从环境变量读取）
     APP_ID = os.getenv("FEISHU_APP_ID")
     APP_SECRET = os.getenv("FEISHU_APP_SECRET")
     WIKI_URL = os.getenv("FEISHU_WIKI_URL")
+
+    # APP_ID = "cli_a9ccfb2bbf385cc6"
+    # APP_SECRET = "4RrEVRd6jXTBrPbOxncNEbprT34AloaH"
+    # WIKI_URL = "https://la1a59fdywl.feishu.cn/wiki/Nzmew2Przi0hQAkgbGHcTCvfn3c?fromScene=spaceOverview&table=tblburubNacfxW79&view=vewGZJS1AM"
     
 
     if not APP_ID or not APP_SECRET or not WIKI_URL:
-        print("❌ 错误：缺少必要的环境变量")
+        log_error("缺少必要的环境变量")
         print("请设置以下环境变量：")
         print("  - FEISHU_APP_ID")
         print("  - FEISHU_APP_SECRET")
@@ -795,48 +861,48 @@ def main():
     monitor = FeishuBitableMonitor(APP_ID, APP_SECRET)
     
     # 解析 wiki URL
-    print("=" * 60)
-    print("步骤 0: 解析 Wiki URL")
-    print("=" * 60)
+    log_group("📋 步骤 0: 解析 Wiki URL")
     wiki_node_token, table_id, view_id = parse_wiki_url(WIKI_URL)
     
     if not wiki_node_token:
-        print("❌ 无法从 URL 中提取 wiki 节点 token")
+        log_error("无法从 URL 中提取 wiki 节点 token")
+        log_endgroup()
         return []
     
-    print(f"✅ 解析成功")
-    print(f"  - Wiki 节点 token: {wiki_node_token}")
-    print(f"  - Table ID: {table_id}")
-    print(f"  - View ID: {view_id}")
+    log_success("解析成功")
+    log_info(f"Wiki 节点 token: {wiki_node_token}")
+    log_info(f"Table ID: {table_id}")
+    log_info(f"View ID: {view_id}")
+    log_endgroup()
     
     # 从 wiki 节点获取 app_token
-    print("\n" + "=" * 60)
-    print("步骤 1: 从知识库节点获取 app_token")
-    print("=" * 60)
+    log_group("🔑 步骤 1: 从知识库节点获取 app_token")
     app_token = monitor.get_app_token_from_wiki(wiki_node_token)
     
     if not app_token:
-        print("\n⚠️  无法获取 app_token，请检查：")
+        log_error("无法获取 app_token")
+        print("   请检查：")
         print("   1. 应用是否有访问知识库的权限")
         print("   2. wiki_node_token 是否正确")
         print("   3. 节点是否是多维表格类型")
+        log_endgroup()
         return []
+    log_endgroup()
     
     # 测试连接，验证 app_token 是否正确
-    print("\n" + "=" * 60)
-    print("步骤 2: 测试连接")
-    print("=" * 60)
+    log_group("🔌 步骤 2: 测试连接")
     if not monitor.test_connection(app_token):
-        print("\n⚠️  连接失败，请检查 app_token 是否正确")
+        log_error("连接失败，请检查 app_token 是否正确")
+        log_endgroup()
         return []
+    log_endgroup()
     
-    print("\n" + "=" * 60)
-    print("步骤 3: 读取并筛选数据")
-    print("=" * 60)
+    log_group("📊 步骤 3: 读取并筛选数据")
     
     # 获取"包状态"为"提审中"的记录
     if not table_id:
-        print("❌ 未找到 table_id，无法继续")
+        log_error("未找到 table_id，无法继续")
+        log_endgroup()
         return []
     
     records = monitor.get_records_by_status(
@@ -846,37 +912,34 @@ def main():
         target_status="提审中",
         view_id=view_id  # 传入视图 ID，从指定视图读取数据
     )
+    log_endgroup()
     
     # 过滤出阶段 != "五图" 的所有记录
-    print("\n" + "=" * 60)
-    print("步骤 4: 过滤阶段 != '五图' 的记录")
-    print("=" * 60)
+    log_group("🔍 步骤 4: 过滤阶段 != '五图' 的记录")
     filtered_records = []
     for record in records:
         if record.stage != "五图":
             filtered_records.append(record)
         else:
-            print(f"  过滤掉: {record.package_name} (阶段: {record.stage})")
+            log_info(f"过滤掉: {record.package_name} (阶段: {record.stage})")
     
-    print(f"  过滤前: {len(records)} 个主应用")
-    print(f"  过滤后: {len(filtered_records)} 个主应用（阶段 != '五图'）")
+    log_info(f"过滤前: {len(records)} 个主应用")
+    log_info(f"过滤后: {len(filtered_records)} 个主应用（阶段 != '五图'）")
+    log_endgroup()
     
     # 计算并显示每个记录的最新版本
-    print("\n" + "=" * 60)
-    print("步骤 5: 计算最新版本")
-    print("=" * 60)
+    log_group("📦 步骤 5: 计算最新版本")
     for record in filtered_records:
         latest_version = record.get_latest_version()
         if record.children:
-            print(f"  {record.package_name}: 最新版本 = {latest_version} (来自子记录)")
+            log_info(f"{record.package_name}: 最新版本 = {latest_version} (来自子记录)")
         else:
-            print(f"  {record.package_name}: 最新版本 = {latest_version} (主记录)")
+            log_info(f"{record.package_name}: 最新版本 = {latest_version} (主记录)")
+    log_endgroup()
     
     # 查询每个 Apple ID 对应的版本，判断是否上线并更新状态
-    print("\n" + "=" * 60)
-    print("步骤 6: 查询每个应用的 Apple Store 状态并更新")
-    print("=" * 60)
-    print("  只显示指定版本已上线的应用\n")
+    log_group("🍎 步骤 6: 查询 Apple Store 状态并更新")
+    log_info("只显示指定版本已上线的应用")
     
     # 飞书通知配置（支持多个群，每个群可以配置不同的 @ 规则）
     # ⚠️ 请替换为实际的群聊 ID 和用户 ID
@@ -900,25 +963,24 @@ def main():
     ]
     
     # 获取当前时间戳（毫秒）
-    from datetime import datetime
     current_timestamp = int(datetime.now().timestamp() * 1000)
+    
+    
+    success_count = 0
+    skip_count = 0
     
     for record in filtered_records:
 
         if not record.apple_id:
-            print(f"{'='*60}")
-            print(f"❌ {record.package_name} - 没有 Apple ID")
-            print(f"{'='*60}")
-            print()
+            log_warning(f"{record.package_name} - 没有 Apple ID，跳过")
+            skip_count += 1
             continue
         
         # 获取本地最新版本
         local_latest_version = record.get_latest_version()
         if not local_latest_version:
-            print(f"{'='*60}")
-            print(f"❌ {record.package_name} - 没有最新版本")
-            print(f"{'='*60}")
-            print()
+            log_warning(f"{record.package_name} - 没有最新版本，跳过")
+            skip_count += 1
             continue
         
         # 查询 Apple Store 状态
@@ -943,17 +1005,17 @@ def main():
                 # )
              
         if isSelectVersionOnline :
-            print(f"{'='*60}")
-            print(f"✅ {record.package_name} - 指定版本已上线")
-            print(f"{'='*60}")
-            print(f"  � 当应用名称: {app_status['track_name']}")
-            print(f"  📦 版本号: {store_version} (本地最新版本: {local_latest_version})")
-            print(f"  🆔 Apple ID: {record.apple_id}")
-            print(f"  📅 发布日期: {app_status['release_date']}")
-            print(f"  🔄 当前版本发布日期: {app_status['current_version_release_date']}")
+            log_info(f"{'='*60}")
+            log_info(f"✅ {record.package_name} - 指定版本已上线")
+            log_info(f"{'='*60}")
+            log_info(f"  � 当应用名称: {app_status['track_name']}")
+            log_info(f"  📦 版本号: {store_version} (本地最新版本: {local_latest_version})")
+            log_info(f"  🆔 Apple ID: {record.apple_id}")
+            log_info(f"  📅 发布日期: {app_status['release_date']}")
+            log_info(f"  🔄 当前版本发布日期: {app_status['current_version_release_date']}")
             if app_status.get('track_view_url'):
-                print(f"  应用链接: {app_status['track_view_url']}")
-            print()
+                log_info(f"  应用链接: {app_status['track_view_url']}")
+            
                 
             # 更新飞书表格状态
             monitor.update_app_status(
@@ -972,23 +1034,36 @@ def main():
                 version=local_latest_version
             )
         else:
-            print(f"{'='*60}")
-            print(f"❌ {record.package_name} - 指定版本未上线")
-            print(f"{'='*60}")
-            print(f"  � 当应用名称: {record.package_name}")
-            print(f"  📦 版本号: {local_latest_version}")
-            print(f"  🆔 Apple ID: {record.apple_id}")
-            print(f"  📅 发布日期: {record.submission_time}")
-            print(f"  🔄 当前版本发布日期: {record.status_update_time}")
-            print()                        
-
-
-    # 打印结果
-    # monitor.print_records(filtered_records)
+            log_info(f"{'='*60}")
+            log_info(f"❌ {record.package_name} - 指定版本未上线")
+            log_info(f"{'='*60}")
+            log_info(f"  � 当应用名称: {record.package_name}")
+            log_info(f"  📦 版本号: {local_latest_version}")
+            log_info(f"  🆔 Apple ID: {record.apple_id}")
+            log_info(f"  📅 发布日期: {record.submission_time}")
+            log_info(f"  🔄 当前版本发布日期: {record.status_update_time}")
+ 
+    log_endgroup()
+    
+    # 打印任务总结
+    log_group("📊 任务执行总结")
+    log_info(f"总共检查: {len(filtered_records)} 个应用")
+    log_info(f"成功上线: {success_count} 个")
+    log_info(f"跳过处理: {skip_count} 个")
+    log_info(f"等待上线: {len(filtered_records) - success_count - skip_count} 个")
+    log_info(f"完成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    log_endgroup()
     
     return filtered_records
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+        log_success("✅ 监控任务执行完成")
+    except Exception as e:
+        log_error(f"监控任务执行失败: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
+        exit(1)
 

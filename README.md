@@ -1,95 +1,109 @@
-# Apple App Monitor
+# Apple 应用监控系统
 
-自动监控 Apple Store 应用上线状态，并发送飞书通知。
+自动监控 Apple Store 应用上线状态，并通过飞书发送通知。
 
 ## 功能特性
 
-- 🔍 自动查询飞书多维表格中"提审中"的应用
-- 📱 通过 iTunes Search API 查询 Apple Store 状态
-- ✅ 自动更新飞书表格状态（已发布 + 过审时间）
-- 📨 发送飞书群消息通知（支持 @ 所有人 / @ 指定用户）
-- ⏰ 每小时自动执行一次（GitHub Actions）
+- 🔍 自动查询 Apple Store 应用状态
+- 📊 从飞书多维表格读取应用信息
+- ✅ 智能数据验证（版本号、提审时间）
+- � 应用上线后自动发送飞书通知（支持 @ 所有人或指定用用户）
+- ⚠️ 数据异常自动预警
+- ⏰ 支持定时执行（GitHub Actions）
+- 📝 自动更新飞书表格状态
 
-## 部署到 GitHub Actions
+## 快速开始
 
-### 1. Fork 或上传代码到 GitHub
-
-将代码上传到你的 GitHub 仓库。
-
-### 2. 配置 GitHub Secrets
-
-在 GitHub 仓库中配置以下 Secrets：
-
-1. 进入仓库 Settings -> Secrets and variables -> Actions
-2. 点击 "New repository secret" 添加以下密钥：
-
-| Secret 名称 | 说明 | 示例值 |
-|------------|------|--------|
-| `FEISHU_APP_ID` | 飞书应用 ID | `cli_xxxxxxxxxxxxxxxx` |
-| `FEISHU_APP_SECRET` | 飞书应用密钥 | `your_app_secret_here` |
-| `FEISHU_WIKI_URL` | 飞书多维表格 URL | `https://xxx.feishu.cn/wiki/...` |
-
-### 3. 启用 GitHub Actions
-
-1. 进入仓库 Actions 标签页
-2. 如果提示启用 Workflows，点击启用
-3. 工作流会自动每小时执行一次
-
-### 4. 手动触发（可选）
-
-在 Actions 页面，选择 "Apple App Monitor" 工作流，点击 "Run workflow" 可以手动触发执行。
-
-## 配置说明
-
-### 修改执行频率
-
-编辑 `.github/workflows/monitor.yml` 文件中的 cron 表达式：
-
-```yaml
-schedule:
-  - cron: '0 * * * *'  # 每小时执行
-  # - cron: '0 */2 * * *'  # 每 2 小时执行
-  # - cron: '0 9-18 * * *'  # 每天 9:00-18:00 每小时执行
-```
-
-### 修改通知配置
-
-编辑 `monitor_apple.py` 中的 `FEISHU_NOTIFICATIONS` 配置：
-
-```python
-FEISHU_NOTIFICATIONS = [
-    {
-        "chat_id": "oc_xxx",  # 群聊 ID
-        "mention_all": True   # @ 所有人
-    },
-    {
-        "chat_id": "oc_yyy",  # 另一个群
-        "mention_user_ids": ["ou_xxx", "ou_yyy"]  # @ 指定用户
-    }
-]
-```
-
-## 本地运行
-
-### 安装依赖
+### 1. 安装依赖
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 设置环境变量
+### 2. 配置环境变量
+
+复制 `.env.example` 为 `.env` 并填写配置：
 
 ```bash
-export FEISHU_APP_ID="your_app_id"
-export FEISHU_APP_SECRET="your_app_secret"
-export FEISHU_WIKI_URL="your_wiki_url"
+cp .env.example .env
 ```
 
-### 运行脚本
+编辑 `.env` 文件：
+
+```bash
+# 环境配置
+ENV=local  # 本地调试模式（不发送飞书通知）
+
+# 飞书应用配置（必需）
+FEISHU_APP_ID=your_app_id
+FEISHU_APP_SECRET=your_app_secret
+FEISHU_WIKI_URL=your_wiki_url
+
+# 飞书通知配置（生产环境需要，本地调试可不填）
+# FEISHU_CHAT_ID_ALL=oc_xxx
+# FEISHU_CHAT_ID_TEAM=oc_yyy
+# FEISHU_MENTION_USERS=ou_aaa,ou_bbb
+```
+
+**环境说明：**
+- `ENV=local`：本地调试模式，不发送飞书通知
+- `ENV=production`：生产环境，发送飞书通知
+
+### 3. 运行脚本
 
 ```bash
 python monitor_apple.py
 ```
+
+## 配置说明
+
+详细配置说明请查看 [CONFIG.md](CONFIG.md)
+
+## 部署指南
+
+GitHub Actions 部署指南请查看 [DEPLOY.md](DEPLOY.md)
+
+## 项目结构
+
+```
+apple_monitor/
+├── config/                    # 配置管理
+│   ├── __init__.py
+│   └── settings.py           # 环境变量配置
+├── models/                    # 数据模型
+│   ├── __init__.py
+│   └── record.py             # ApplePackageRecord 数据模型
+├── services/                  # 外部服务
+│   ├── __init__.py
+│   ├── apple_service.py      # Apple Store API 服务
+│   ├── feishu_service.py     # 飞书表格服务
+│   └── feishu_messenger.py   # 飞书消息服务
+├── utils/                     # 工具函数
+│   ├── __init__.py
+│   ├── logger.py             # 日志工具
+│   └── url_parser.py         # URL 解析工具
+├── monitor_apple.py          # 主入口（业务流程编排）
+├── requirements.txt          # 依赖包
+├── .env                      # 环境变量配置
+├── CONFIG.md                 # 配置文档
+└── DEPLOY.md                 # 部署文档
+```
+
+## 数据验证规则
+
+系统会自动验证以下数据完整性：
+
+### 主记录（无子记录）
+- ❌ 缺少版本号
+- ❌ 缺少提审时间
+
+### 子记录
+- ❌ 任何子记录缺少版本号
+- ❌ 多条子记录版本号相同
+- ❌ 任何子记录缺少提审时间
+- ℹ️ 只处理状态为"提审中"或"已发布"的子记录
+
+异常记录会被跳过处理，并发送飞书警告通知（@ 所有人）。
 
 ## 权限要求
 
@@ -99,43 +113,36 @@ python monitor_apple.py
 - ✅ `wiki:space` - 访问知识库
 - ✅ `im:message` - 发送消息
 
-## 注意事项
+## 本地开发
 
-1. **GitHub Actions 限制**
-   - 免费账户每月有 2000 分钟的执行时间
-   - 每小时执行一次，每次约 1-2 分钟，完全够用
+### 环境要求
 
-2. **时区问题**
-   - GitHub Actions 使用 UTC 时区
-   - 如需调整为北京时间，cron 表达式需要减 8 小时
+- Python 3.7+
+- pip
 
-3. **飞书权限**
-   - 确保应用已添加到目标群聊中
-   - 确保应用有编辑多维表格的权限
+### 开发流程
 
-## 查看执行日志
-
-1. 进入 GitHub 仓库的 Actions 页面
-2. 点击具体的工作流运行记录
-3. 查看详细的执行日志
+1. 克隆仓库
+2. 安装依赖：`pip install -r requirements.txt`
+3. 配置 `.env` 文件
+4. 运行脚本：`python monitor_apple.py`
 
 ## 故障排查
 
-### 问题：工作流没有自动执行
+### 问题：数据验证失败
 
-- 检查 Actions 是否已启用
-- 检查仓库是否有活动（GitHub 可能暂停不活跃仓库的定时任务）
+查看日志中的"异常记录详情"部分，会显示具体的错误原因和子记录信息。
 
-### 问题：执行失败
+### 问题：飞书消息发送失败
 
-- 查看 Actions 日志中的错误信息
-- 检查 Secrets 是否配置正确
-- 检查飞书应用权限是否足够
+- 检查应用是否已添加到目标群聊
+- 检查应用是否有 `im:message` 权限
+- 查看错误码和错误信息
 
-### 问题：重复通知
+### 问题：表格更新失败
 
-- 脚本会检查版本号是否匹配，只有匹配时才通知
-- 如果已经更新为"已发布"状态，下次不会再处理
+- 检查应用是否有 `bitable:app` 权限
+- 检查应用是否已添加为多维表格的协作者
 
 ## License
 
